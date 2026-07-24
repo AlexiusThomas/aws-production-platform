@@ -10,10 +10,10 @@ output "aws_region" {
 
 output "vpc_id" {
   description = "ID of the application VPC."
-  value       = module.vpc.vpc_id
+  value       = module.networking.vpc_id
 }
 
 output "vpc_cidr_block" {
   description = "CIDR block of the application VPC."
-  value       = module.vpc.vpc_cidr_block
+  value       = module.networking.vpc_cidr_block
 }
