@@ -29,3 +29,44 @@ module "networking" {
     "10.0.20.0/24"
   ]
 }
+
+module "alb" {
+  source = "./modules/alb"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  vpc_id                = module.networking.vpc_id
+  alb_security_group_id = module.networking.alb_security_group_id
+  public_subnet_ids     = module.networking.public_subnet_ids
+}
+
+module "ecs" {
+  source = "./modules/ecs"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
+
+module "ecr" {
+  source = "./modules/ecr"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
+
+module "ecs_service" {
+  source = "./modules/ecs-service"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+
+  ecs_cluster_id = module.ecs.cluster_id
+
+  image_uri = "${module.ecr.repository_url}:latest"
+
+  private_subnet_ids    = module.networking.private_subnet_ids
+  ecs_security_group_id = module.networking.ecs_security_group_id
+  target_group_arn      = module.alb.target_group_arn
+}
