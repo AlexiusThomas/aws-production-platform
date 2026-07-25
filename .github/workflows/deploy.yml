@@ -32,10 +32,10 @@ jobs:
           echo "Workflow: ${{ github.workflow }}"
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-to-assume: arn:aws:iam::479752408129:role/aws-production-platform-dev-github-actions-role
           role-session-name: github-actions-deploy
 
       - name: Confirm AWS identity
