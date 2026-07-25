@@ -69,4 +69,4 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE"
 
-        echo "Deployment completed successfully."
+          echo "Deployment completed successfully."
