@@ -70,3 +70,12 @@ module "ecs_service" {
   ecs_security_group_id = module.networking.ecs_security_group_id
   target_group_arn      = module.alb.target_group_arn
 }
+
+module "github_oidc" {
+  source = "./modules/github-oidc"
+
+  github_owner      = "AlexiusThomas"
+  github_repository = "aws-production-platform"
+  project_name      = var.project_name
+  environment       = var.environment
+}
