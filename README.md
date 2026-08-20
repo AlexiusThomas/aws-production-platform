@@ -1,4 +1,3 @@
-````markdown
 # AWS Production Platform
 
 [![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)](https://developer.hashicorp.com/terraform)
