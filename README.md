@@ -1,259 +1,346 @@
+````markdown
 # AWS Production Platform
 
-A production-style AWS platform that demonstrates cloud infrastructure engineering, Infrastructure as Code, containerized application deployment, secure CI/CD automation, and operational deployment practices.
+[![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)](https://developer.hashicorp.com/terraform)
+[![AWS](https://img.shields.io/badge/Cloud-AWS-232F3E?logo=amazonaws)](https://aws.amazon.com/)
+[![Docker](https://img.shields.io/badge/Containers-Docker-2496ED?logo=docker)](https://www.docker.com/)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?logo=githubactions)](https://github.com/features/actions)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-This project provisions AWS infrastructure with Terraform, builds a Dockerized Python application, stores versioned container images in Amazon ECR, and automatically deploys updates to Amazon ECS through GitHub Actions.
+## Overview
 
----
+AWS Production Platform is a production-style cloud platform demonstrating how infrastructure, containerized applications, CI/CD automation, networking, security, and operational validation work together on AWS.
 
-## Project Overview
+The platform provisions AWS infrastructure using **Terraform**, builds and versions a **Dockerized Python application**, stores container images in **Amazon ECR**, runs the application using **Amazon ECS**, distributes traffic through an **Application Load Balancer**, and automatically deploys application changes through **GitHub Actions**.
 
-The platform includes:
+The project was designed around an operational engineering principle:
 
-* Modular Terraform infrastructure
-* Amazon ECS container orchestration
-* Amazon ECR image storage
-* Application Load Balancer traffic routing
-* Docker containerization
-* GitHub Actions CI/CD
-* GitHub OIDC authentication with AWS
-* Immutable Docker image versioning
-* Automated ECS service deployment
-* ECS service stability verification
-
-Every push to the `main` branch triggers the deployment workflow.
+**Build → Validate → Deploy → Observe → Troubleshoot → Recover → Improve**
 
 ---
 
-## Architecture
+## Problem
 
-```mermaid
-flowchart LR
-    Developer[Developer] --> GitHub[GitHub Repository]
-    GitHub --> Actions[GitHub Actions]
+Deploying an application manually creates several operational risks:
 
-    Actions -->|OIDC Authentication| IAM[AWS IAM Role]
-    Actions --> Docker[Build Docker Image]
-    Docker --> ECR[Amazon ECR]
+- Inconsistent infrastructure
+- Configuration drift
+- Manual deployment errors
+- Long-lived cloud credentials
+- Limited deployment traceability
+- Difficult troubleshooting
+- Inconsistent application versions
+- Limited deployment verification
 
-    ECR --> ECS[Amazon ECS Service]
-    ECS --> Tasks[ECS Tasks]
-    ALB[Application Load Balancer] --> Tasks
-    Users[Application Users] --> ALB
+A production platform needs more than infrastructure that simply launches successfully.
 
-    Terraform[Terraform] --> VPC[AWS VPC]
-    Terraform --> IAM
-    Terraform --> ECR
-    Terraform --> ECS
-    Terraform --> ALB
+It should provide a repeatable process for:
+
+- Provisioning infrastructure
+- Building applications
+- Versioning artifacts
+- Authenticating securely
+- Deploying changes
+- Verifying service health
+- Troubleshooting failures
+- Recovering from unsuccessful deployments
+
+---
+
+## Solution
+
+I built an automated AWS container platform using:
+
+- **Terraform** for Infrastructure as Code
+- **Amazon VPC** for network isolation
+- **Amazon ECS** for container orchestration
+- **Amazon ECR** for container image storage
+- **Application Load Balancer** for application traffic
+- **Docker** for application packaging
+- **GitHub Actions** for CI/CD automation
+- **GitHub OIDC** for keyless AWS authentication
+- **AWS IAM** for deployment permissions
+- **Python/Flask** for the application
+- **Health checks** for deployment verification
+
+Every push to the `main` branch can trigger the automated application deployment workflow.
+
+---
+
+# Architecture
+
+```text
+                         Developer
+                             |
+                             v
+                     GitHub Repository
+                             |
+                             v
+                      GitHub Actions
+                             |
+                    OIDC Authentication
+                             |
+                             v
+                       AWS IAM Role
+                             |
+                 +-----------+-----------+
+                 |                       |
+                 v                       v
+          Build Docker Image        AWS Infrastructure
+                 |                    Terraform
+                 v
+            Amazon ECR
+                 |
+                 v
+            Amazon ECS
+                 |
+                 v
+             ECS Tasks
+                 ^
+                 |
+       Application Load Balancer
+                 ^
+                 |
+               Users
 ```
 
+Terraform manages the AWS infrastructure while GitHub Actions manages the application deployment workflow.
+
 ---
 
-## CI/CD Deployment Flow
+# CI/CD Deployment Pipeline
 
-```mermaid
-flowchart TD
-    Push[Push to main branch] --> Checkout[Checkout repository]
-    Checkout --> Authenticate[Assume AWS IAM role using OIDC]
-    Authenticate --> Login[Log in to Amazon ECR]
-    Login --> Build[Build Docker image]
-    Build --> Tag[Tag image with Git SHA and latest]
-    Tag --> Push[Push image to Amazon ECR]
-    Push --> Deploy[Force ECS service deployment]
-    Deploy --> Stabilize[Wait for ECS service stability]
-    Stabilize --> Complete[Deployment completed]
+The deployment workflow follows:
+
+```text
+Push to main
+     |
+     v
+Checkout Repository
+     |
+     v
+Request GitHub OIDC Token
+     |
+     v
+Assume AWS IAM Deployment Role
+     |
+     v
+Authenticate to Amazon ECR
+     |
+     v
+Build Docker Image
+     |
+     v
+Tag Image
+   /     \
+latest   Git SHA
+   \     /
+     v
+Push to Amazon ECR
+     |
+     v
+Deploy to Amazon ECS
+     |
+     v
+Wait for ECS Service Stability
+     |
+     v
+Verify Deployment
 ```
 
-The workflow publishes each container image with two tags:
+This provides a repeatable deployment path from source code to running AWS infrastructure.
 
-* `latest`
-* The full Git commit SHA
+---
+
+# Key Engineering Features
+
+## Infrastructure as Code
+
+Terraform manages the AWS infrastructure through reusable modules.
+
+Infrastructure changes are version controlled and can be reviewed before deployment.
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+This reduces dependence on manual AWS console configuration and improves repeatability.
+
+---
+
+## Containerized Application Deployment
+
+The Python application is packaged into a Docker image.
+
+```bash
+docker build -t aws-production-platform ./app
+```
+
+The same container artifact can be tested locally and deployed through Amazon ECS.
+
+This reduces differences between development and deployment environments.
+
+---
+
+## Immutable Image Versioning
+
+Each deployment publishes Docker images using:
+
+- `latest`
+- Full Git commit SHA
 
 Example:
 
 ```text
-8c9182fbefdc781e28c59967a1605f19783f191b
 latest
+8c9182fbefdc781e28c59967a1605f19783f191b
 ```
 
-Git SHA tagging provides immutable deployment history and makes it possible to associate a deployed container image with the exact source-code revision that created it.
+The Git SHA creates traceability between:
+
+**Source Code → Container Image → Deployment**
+
+If an operational issue occurs, the deployed artifact can be associated with the exact source revision that produced it.
 
 ---
 
-## Technology Stack
+## Keyless AWS Authentication
 
-### AWS
+GitHub Actions authenticates to AWS using **OpenID Connect (OIDC)**.
 
-* Amazon Elastic Container Service
-* Amazon Elastic Container Registry
-* Application Load Balancer
-* AWS Identity and Access Management
-* AWS Virtual Private Cloud
-* Public and private subnets
-* Internet Gateway
-* NAT Gateway
-* Security groups
-
-### Infrastructure and DevOps
-
-* Terraform
-* Docker
-* GitHub Actions
-* GitHub OpenID Connect
-* AWS CLI
-* Git
-
-### Application
-
-* Python
-* Flask
-
----
-
-## Repository Structure
+The workflow assumes an AWS IAM deployment role instead of storing permanent AWS access keys in GitHub.
 
 ```text
-aws-production-platform/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml
-├── app/
-│   ├── app.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── docker/
-├── terraform/
-│   ├── backend.tf
-│   ├── main.tf
-│   ├── outputs.tf
-│   ├── providers.tf
-│   ├── variables.tf
-│   ├── versions.tf
-│   ├── environments/
-│   │   └── dev/
-│   └── modules/
-│       ├── alb/
-│       ├── ecr/
-│       ├── ecs/
-│       ├── ecs-service/
-│       ├── github-oidc/
-│       └── networking/
-├── .gitignore
-├── LICENSE
-└── README.md
+GitHub Actions
+      |
+      | OIDC Token
+      v
+AWS IAM Trust Policy
+      |
+      v
+Temporary AWS Credentials
 ```
 
----
-
-## Terraform Modules
-
-The infrastructure is separated into reusable Terraform modules.
-
-### Networking
-
-The networking module manages:
-
-* VPC
-* Public and private subnets
-* Internet Gateway
-* NAT Gateway
-* Route tables
-* Security groups
-
-### Application Load Balancer
-
-The ALB module manages:
-
-* Application Load Balancer
-* Target groups
-* Listener configuration
-* Load balancer outputs
-
-### Amazon ECR
-
-The ECR module creates the container image repository used by the deployment pipeline.
-
-### Amazon ECS
-
-The ECS module creates the ECS cluster used to host the application.
-
-### ECS Service
-
-The ECS service module manages the application service, task deployment, networking integration, and load balancer attachment.
-
-### GitHub OIDC
-
-The GitHub OIDC module manages:
-
-* AWS OIDC identity provider
-* IAM deployment role
-* GitHub Actions trust relationship
-* Deployment permissions
-
-This allows GitHub Actions to authenticate to AWS without storing permanent AWS access keys in GitHub.
+This reduces the security risk associated with long-lived cloud credentials.
 
 ---
 
-## GitHub Actions Workflow
+## Deployment Stability Verification
 
-The deployment workflow runs when:
+The deployment pipeline does not stop after requesting an ECS deployment.
 
-* Code is pushed to `main`
-* The workflow is started manually through `workflow_dispatch`
+It waits for the ECS service to report a stable state.
 
-The workflow performs the following steps:
+This is an important operational distinction:
 
-1. Checks out the repository.
-2. Requests a GitHub OIDC identity token.
-3. Assumes the AWS deployment IAM role.
-4. Confirms the active AWS identity.
-5. Logs in to Amazon ECR.
-6. Builds the Docker image.
-7. Tags the image with `latest` and the Git commit SHA.
-8. Pushes both tags to Amazon ECR.
-9. Forces a new Amazon ECS deployment.
-10. Waits until the ECS service reports a stable state.
+**Deployment initiated ≠ deployment successful**
+
+The workflow verifies that the service reaches a stable state before considering the deployment complete.
 
 ---
 
-## Security Design
+# AWS Services
 
-This project uses several security-focused implementation choices.
-
-### Keyless AWS Authentication
-
-GitHub Actions uses OpenID Connect to assume an AWS IAM role.
-
-No permanent AWS access key or secret access key is stored in the GitHub repository.
-
-### Restricted Trust Relationship
-
-The AWS IAM role trust policy restricts role assumption to the configured GitHub repository identity.
-
-### Infrastructure as Code
-
-Infrastructure is declared through Terraform, creating a version-controlled and repeatable configuration.
-
-### Immutable Image Versioning
-
-Container images are tagged with the complete Git commit SHA. This provides traceability between the application source code and the deployed image.
-
-### Network Controls
-
-Security groups control traffic between the load balancer and ECS workloads.
+| AWS Service | Purpose |
+|---|---|
+| Amazon VPC | Provides network isolation |
+| Public Subnets | Host internet-facing infrastructure |
+| Private Subnets | Isolate application workloads |
+| Internet Gateway | Provides public internet connectivity |
+| NAT Gateway | Provides outbound connectivity for private resources |
+| Route Tables | Control network routing |
+| Security Groups | Control network access |
+| Application Load Balancer | Routes application traffic |
+| Amazon ECS | Runs and manages containerized workloads |
+| Amazon ECR | Stores versioned Docker images |
+| AWS IAM | Controls deployment permissions |
+| GitHub OIDC / IAM | Provides keyless CI/CD authentication |
 
 ---
 
-## Application Endpoints
+# Terraform Architecture
 
-The application exposes a main application endpoint and a health endpoint.
+Infrastructure is separated into reusable modules.
+
+```text
+terraform/
+├── backend.tf
+├── main.tf
+├── outputs.tf
+├── providers.tf
+├── variables.tf
+├── versions.tf
+├── environments/
+│   └── dev/
+└── modules/
+    ├── alb/
+    ├── ecr/
+    ├── ecs/
+    ├── ecs-service/
+    ├── github-oidc/
+    └── networking/
+```
+
+## Networking Module
+
+Manages:
+
+- VPC
+- Public subnets
+- Private subnets
+- Internet Gateway
+- NAT Gateway
+- Route tables
+- Security groups
+
+## ALB Module
+
+Manages:
+
+- Application Load Balancer
+- Target group
+- Listener
+- Load balancer outputs
+
+## ECR Module
+
+Creates the container repository used by the deployment pipeline.
+
+## ECS Module
+
+Creates the ECS cluster.
+
+## ECS Service Module
+
+Manages:
+
+- ECS service
+- Application task deployment
+- Networking integration
+- Load balancer integration
+
+## GitHub OIDC Module
+
+Manages:
+
+- AWS OIDC identity provider
+- IAM deployment role
+- GitHub trust relationship
+- Deployment permissions
+
+---
+
+# Application Health Checks
+
+The application exposes:
 
 ```text
 /
 ```
 
-Example response:
+Example:
 
 ```json
 {
@@ -263,13 +350,13 @@ Example response:
 }
 ```
 
-Health check:
+The application also provides:
 
 ```text
 /health
 ```
 
-Example response:
+Example:
 
 ```json
 {
@@ -277,46 +364,479 @@ Example response:
 }
 ```
 
----
-
-## Deployment Verification
-
-The platform has been successfully verified through:
-
-* Successful GitHub Actions execution
-* Successful AWS OIDC role assumption
-* Docker image publication to Amazon ECR
-* Git SHA and `latest` image tags
-* Active ECS service
-* Running ECS task
-* Completed ECS deployment rollout
-* Healthy Application Load Balancer target
-* Successful application response
-* Successful health endpoint response
+The health endpoint allows infrastructure components and operators to determine whether the application is responding successfully.
 
 ---
 
-## Local Application Testing
+# Deployment Verification
 
-Build the application image:
+The platform has been validated through:
+
+- Successful GitHub Actions execution
+- Successful AWS OIDC role assumption
+- Successful authentication to Amazon ECR
+- Docker image creation
+- ECR image publication
+- Git SHA image versioning
+- Active ECS service
+- Running ECS task
+- Successful ECS deployment rollout
+- Healthy ALB target
+- Successful application response
+- Successful `/health` response
+
+This follows the principle:
+
+**Deploy → Validate → Verify**
+
+rather than assuming a successful pipeline command means the application is healthy.
+
+---
+
+# Troubleshooting Experience
+
+Building this platform required diagnosing and resolving real deployment issues.
+
+## GitHub OIDC Subject-Claim Mismatch
+
+### Problem
+
+GitHub Actions could not successfully assume the AWS IAM deployment role.
+
+### Investigation
+
+The GitHub OIDC token identity did not match the subject condition configured in the IAM trust policy.
+
+### Resolution
+
+The trust relationship was corrected so the expected GitHub repository identity could assume the deployment role.
+
+### Lesson
+
+Authentication problems often require tracing the complete trust chain:
+
+**GitHub Identity → OIDC Token → IAM Trust Policy → IAM Role**
+
+---
+
+## IAM Trust Policy Failure
+
+### Problem
+
+The CI/CD pipeline could not obtain the AWS permissions required for deployment.
+
+### Investigation
+
+The IAM role and trust relationship were reviewed to determine whether GitHub Actions was authorized to assume the role.
+
+### Lesson
+
+IAM troubleshooting requires distinguishing between:
+
+- Who can assume the role
+- What the role can do after it is assumed
+
+---
+
+## GitHub Actions YAML Errors
+
+### Problem
+
+The deployment workflow failed because of workflow configuration issues.
+
+### Investigation
+
+GitHub Actions output was reviewed to identify YAML formatting and configuration problems.
+
+### Resolution
+
+The workflow configuration was corrected and rerun.
+
+### Lesson
+
+CI/CD troubleshooting begins with identifying the exact pipeline stage that failed rather than treating the pipeline as one system.
+
+---
+
+## Docker Image Tagging Problems
+
+### Problem
+
+The expected container image version was not available for deployment.
+
+### Investigation
+
+The build, tagging, and ECR publication stages were inspected.
+
+### Resolution
+
+The image-tagging workflow was corrected and the ECR repository was verified.
+
+### Lesson
+
+Container deployments require traceability between:
+
+**Code → Build → Tag → Registry → Deployment**
+
+---
+
+## ECS Deployment Stabilization
+
+### Problem
+
+Starting an ECS deployment did not automatically mean that the new application version was healthy.
+
+### Investigation
+
+ECS service state, running tasks, load balancer target health, and application health were checked.
+
+### Lesson
+
+A successful deployment requires validation at multiple layers.
+
+---
+
+# Operational Troubleshooting Strategy
+
+If the production application became unavailable, I would troubleshoot from the user-facing layer toward the application.
+
+```text
+User
+  |
+  v
+Application Load Balancer
+  |
+  v
+Target Group
+  |
+  v
+ECS Service
+  |
+  v
+ECS Task
+  |
+  v
+Docker Container
+  |
+  v
+Application
+```
+
+## 1. Confirm the Failure
+
+Determine:
+
+- Is the application completely unavailable?
+- Are only some requests failing?
+- When did the issue begin?
+- Did the issue begin after a deployment?
+
+## 2. Check Load Balancer Health
+
+Review:
+
+- Listener configuration
+- Target group
+- Target health
+- Security groups
+
+## 3. Check ECS
+
+Review:
+
+- Service status
+- Desired task count
+- Running task count
+- Failed tasks
+- Deployment state
+- ECS events
+
+## 4. Check Application Health
+
+Test:
+
+```bash
+curl <application-url>/health
+```
+
+## 5. Check the Container
+
+Determine whether:
+
+- The expected image is deployed
+- The container started successfully
+- The correct port is exposed
+- The application process is running
+
+## 6. Correlate With Deployment History
+
+Use the Git SHA image tag to identify the exact application revision associated with the deployment.
+
+## 7. Remediate
+
+Correct the root cause rather than only restarting infrastructure.
+
+## 8. Verify
+
+Confirm:
+
+- ECS service is stable
+- Tasks are running
+- ALB targets are healthy
+- Health endpoint succeeds
+- User traffic succeeds
+
+Operational workflow:
+
+**Detect → Investigate → Isolate → Remediate → Verify**
+
+---
+
+# Failure-Mode Analysis
+
+## Scenario 1: ECS Task Fails
+
+**Failure:** A container task stops or becomes unhealthy.
+
+**Investigate:**
+
+- ECS service events
+- Task status
+- Container exit information
+- Application logs
+- ALB target health
+
+**Recovery:**
+
+ECS service scheduling can launch a replacement task to maintain the desired task count.
+
+---
+
+## Scenario 2: Bad Application Deployment
+
+**Failure:** A newly deployed image causes the health check to fail.
+
+**Detection:**
+
+The ALB reports an unhealthy target or the ECS deployment fails to stabilize.
+
+**Investigation:**
+
+Compare the failing image's Git SHA with the corresponding source revision.
+
+**Recovery strategy:**
+
+Redeploy a known-good container image.
+
+Future improvement:
+
+Implement automated rollback.
+
+---
+
+## Scenario 3: CI/CD Authentication Failure
+
+**Failure:** GitHub Actions cannot assume the AWS role.
+
+**Investigate:**
+
+```text
+GitHub Repository
+      |
+      v
+OIDC Token
+      |
+      v
+IAM Trust Policy
+      |
+      v
+Deployment Role
+```
+
+Check the repository identity, subject claim, IAM trust policy, and deployment permissions.
+
+---
+
+## Scenario 4: Application Load Balancer Reports Unhealthy Target
+
+Investigate:
+
+- Target group health
+- Health-check path
+- ECS task status
+- Container port
+- Security groups
+- Application `/health` endpoint
+
+The goal is to determine whether the failure exists at the:
+
+**Network → Container → Application**
+
+layer.
+
+---
+
+# What Happens at 10x Traffic?
+
+A major increase in traffic requires examining the complete request path.
+
+```text
+Users
+  |
+  v
+ALB
+  |
+  v
+ECS Service
+  |
+  v
+ECS Tasks
+  |
+  v
+Application
+```
+
+## Load Balancer
+
+Evaluate:
+
+- Request volume
+- Target response time
+- HTTP errors
+- Target health
+
+## ECS
+
+Evaluate:
+
+- Number of running tasks
+- CPU utilization
+- Memory utilization
+- Task failures
+
+## Application
+
+Evaluate:
+
+- Response latency
+- Error rate
+- Resource consumption
+- Downstream dependencies
+
+The next production improvement would be **ECS Service Auto Scaling**, allowing task capacity to respond automatically to demand.
+
+Scaling should be driven by observed system behavior rather than simply increasing resources everywhere.
+
+**Measure → Identify Bottleneck → Scale → Verify**
+
+---
+
+# Reliability Improvements
+
+The current platform provides a strong foundation, but production reliability could be improved further through:
+
+- Multiple ECS tasks
+- ECS Service Auto Scaling
+- CPU-based scaling
+- Memory-based scaling
+- Multi-AZ resilience testing
+- CloudWatch dashboards
+- CloudWatch alarms
+- ECS Container Insights
+- Structured application logging
+- Automated deployment rollback
+- Blue/green deployments
+- Production approval gates
+
+---
+
+# Monitoring and Observability Roadmap
+
+Planned improvements include:
+
+- CloudWatch dashboard
+- CloudWatch alarms
+- ECS Container Insights
+- Application metrics
+- Structured application logs
+
+Important operational signals include:
+
+### Traffic
+
+- Request count
+
+### Errors
+
+- HTTP 4xx/5xx errors
+- ECS task failures
+- Application errors
+
+### Latency
+
+- ALB target response time
+- Application response time
+
+### Saturation
+
+- ECS CPU utilization
+- ECS memory utilization
+
+These signals help answer:
+
+**Is the system available?**
+
+**Is it healthy?**
+
+**Where is the bottleneck?**
+
+---
+
+# Security Design
+
+## Keyless Authentication
+
+GitHub Actions uses OIDC instead of permanent AWS access keys.
+
+## Restricted Trust
+
+The AWS IAM role trust policy restricts which GitHub repository identity can assume the deployment role.
+
+## Network Controls
+
+Security groups control communication between the ALB and ECS workloads.
+
+## Private Application Networking
+
+Application infrastructure can operate inside private networking while the ALB provides the public entry point.
+
+## Immutable Artifacts
+
+Git SHA image tags provide traceability between source code and deployed containers.
+
+---
+
+# Local Testing
+
+Build:
 
 ```bash
 docker build -t aws-production-platform ./app
 ```
 
-Run the container:
+Run:
 
 ```bash
 docker run --rm -p 8080:8080 aws-production-platform
 ```
 
-Test the application:
+Test:
 
 ```bash
 curl http://localhost:8080
 ```
 
-Test the health endpoint:
+Health check:
 
 ```bash
 curl http://localhost:8080/health
@@ -324,150 +844,126 @@ curl http://localhost:8080/health
 
 ---
 
-## Terraform Usage
-
-Move into the Terraform directory:
+# Terraform Usage
 
 ```bash
 cd terraform
-```
-
-Initialize Terraform:
-
-```bash
 terraform init
-```
-
-Review the proposed infrastructure changes:
-
-```bash
 terraform plan
-```
-
-Apply the infrastructure:
-
-```bash
 terraform apply
 ```
 
-Review Terraform outputs:
+Review outputs:
 
 ```bash
 terraform output
 ```
 
-Destroy the infrastructure when it is no longer needed:
+Cleanup:
 
 ```bash
 terraform destroy
 ```
 
-> Review the Terraform plan carefully before applying or destroying infrastructure.
+Always review Terraform plans before applying or destroying infrastructure.
 
 ---
 
-## Current Project Status
+# Lessons Learned
 
-* [x] Modular Terraform configuration
-* [x] VPC networking
-* [x] Public and private subnets
-* [x] Internet Gateway
-* [x] NAT Gateway
-* [x] Security groups
-* [x] Application Load Balancer
-* [x] Amazon ECR repository
-* [x] Amazon ECS cluster
-* [x] Amazon ECS service
-* [x] Dockerized Python application
-* [x] GitHub Actions deployment workflow
-* [x] GitHub OIDC authentication
-* [x] Git SHA image versioning
-* [x] ECS deployment stability verification
-* [x] Application health endpoint
+Building this platform strengthened my understanding of how multiple engineering disciplines work together in a production cloud environment.
+
+Key lessons include:
+
+- Infrastructure deployment and application deployment are related but separate operational workflows.
+- CI/CD pipelines require troubleshooting at individual stages.
+- IAM trust relationships are critical to secure automation.
+- OIDC removes the need for permanent AWS deployment credentials.
+- Container image versioning improves deployment traceability.
+- Starting a deployment does not mean the application is healthy.
+- Health checks provide an objective mechanism for determining application availability.
+- Infrastructure should be reproducible through code.
+- Failures should be investigated systematically from symptoms to root cause.
+- Production engineering requires thinking about deployment, reliability, security, observability, and recovery together.
 
 ---
 
-## Roadmap
+# Skills Demonstrated
 
-### Monitoring and Observability
+This project provides hands-on evidence of:
 
-* [ ] Add CloudWatch dashboard
-* [ ] Add CloudWatch alarms
-* [ ] Enable ECS Container Insights
-* [ ] Add application metrics
-* [ ] Add structured application logging
-
-### Availability and Scaling
-
-* [ ] Configure ECS Service Auto Scaling
-* [ ] Run multiple ECS tasks
-* [ ] Add CPU and memory scaling policies
-* [ ] Test multi-Availability Zone resilience
-
-### Security
-
-* [ ] Add AWS WAF
-* [ ] Add AWS Secrets Manager
-* [ ] Add AWS KMS encryption
-* [ ] Add automated vulnerability scanning
-* [ ] Add security checks to the CI/CD workflow
-
-### Terraform
-
-* [ ] Configure production remote state
-* [ ] Add state locking
-* [ ] Add separate development, staging, and production configurations
-* [ ] Add Terraform formatting and validation checks
-* [ ] Add Terraform security scanning
-
-### Deployment Strategy
-
-* [ ] Add automated application tests
-* [ ] Add deployment rollback logic
-* [ ] Add blue/green deployment support
-* [ ] Add deployment approval gates for production
+- AWS infrastructure architecture
+- Terraform
+- Infrastructure as Code
+- Amazon ECS
+- Amazon ECR
+- Docker
+- Application Load Balancers
+- VPC networking
+- IAM roles and trust policies
+- GitHub Actions
+- OpenID Connect federation
+- CI/CD pipeline development
+- Container image versioning
+- Deployment automation
+- Deployment troubleshooting
+- YAML troubleshooting
+- AWS CLI validation
+- Application health checks
+- Operational failure analysis
+- Technical documentation
 
 ---
 
-## Skills Demonstrated
+# What This Project Demonstrates
 
-This project demonstrates practical experience with:
+This project demonstrates the ability to manage the complete lifecycle of a cloud-hosted application:
 
-* AWS infrastructure architecture
-* Terraform module development
-* Infrastructure as Code
-* Amazon ECS administration
-* Amazon ECR image management
-* Docker image creation
-* Application Load Balancer configuration
-* VPC networking
-* IAM role and trust policy configuration
-* GitHub Actions automation
-* OpenID Connect federation
-* CI/CD pipeline development
-* Immutable artifact versioning
-* Deployment troubleshooting
-* YAML debugging
-* AWS CLI validation
-* Application health checks
-* Cloud infrastructure documentation
+**Provision → Build → Secure → Deploy → Validate → Troubleshoot → Recover → Improve**
+
+The goal is not simply to create AWS resources.
+
+The goal is to build infrastructure and deployment processes that are **repeatable, secure, traceable, supportable, and designed for reliable operations.**
 
 ---
 
-## Troubleshooting Experience
+# Future Improvements
 
-Building this platform required diagnosing and resolving several real deployment issues, including:
+## Observability
 
-* GitHub OIDC subject-claim mismatches
-* IAM trust-policy failures
-* GitHub Actions YAML indentation errors
-* Missing environment variables
-* Docker image-tagging problems
-* ECR image verification
-* ECS deployment stabilization
-* Application health validation
+- CloudWatch dashboards
+- CloudWatch alarms
+- ECS Container Insights
+- Structured application logging
 
-These troubleshooting steps reflect the operational work required to build and maintain automated cloud platforms.
+## Scaling
+
+- Multiple ECS tasks
+- ECS Service Auto Scaling
+- CPU and memory scaling policies
+- Multi-AZ resilience testing
+
+## Deployment Safety
+
+- Automated rollback
+- Blue/green deployment
+- Automated application tests
+- Production approval gates
+
+## Security
+
+- AWS WAF
+- AWS Secrets Manager
+- AWS KMS
+- Container vulnerability scanning
+- CI/CD security scanning
+
+## Terraform
+
+- Production remote state
+- State locking
+- Development/staging/production environments
+- Terraform security scanning
 
 ---
 
@@ -477,11 +973,10 @@ These troubleshooting steps reflect the operational work required to build and m
 
 Cloud Infrastructure Engineer | AWS Solutions Architect
 
-* GitHub: [AlexiusThomas](https://github.com/AlexiusThomas)
-* LinkedIn: [alexiusvictoria](https://www.linkedin.com/in/alexiusvictoria/)
-
----
+- GitHub: AlexiusThomas
+- LinkedIn: Alexius Victoria
 
 ## License
 
-This project is licensed under the terms included in the [LICENSE](LICENSE) file.
+This project is licensed under the terms included in the `LICENSE` file.
+````
